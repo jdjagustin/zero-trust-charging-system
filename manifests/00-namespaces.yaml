@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: billing-cde
+  labels:
+    zone: cde
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: billing-clients
+  labels:
+    zone: clients
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: billing-admin
+  labels:
+    zone: admin
