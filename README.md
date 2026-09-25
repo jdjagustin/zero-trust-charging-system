@@ -2,8 +2,8 @@
 
 ![Status: design only](https://img.shields.io/badge/status-design%20only-orange)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-NetworkPolicy-326CE5?logo=kubernetes&logoColor=white)
-![k3s](https://img.shields.io/badge/k3s-lightweight%20Kubernetes-FFC61C)
-![Calico](https://img.shields.io/badge/CNI-Calico-F58220)
+![k3s](https://img.shields.io/badge/k3s-lightweight%20Kubernetes-2F6F8F)
+![Calico](https://img.shields.io/badge/CNI-Calico-B85400)
 ![MongoDB](https://img.shields.io/badge/MongoDB-balance--db-47A248?logo=mongodb&logoColor=white)
 ![PCI DSS](https://img.shields.io/badge/PCI%20DSS-Req.%201%20mapping-1A1F71)
 ![NIST SP 800-207](https://img.shields.io/badge/NIST-SP%20800--207-005EA2)
