@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: balance-db-data
+  namespace: billing-cde
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: balance-db
+  namespace: billing-cde
+  labels:
+    app.kubernetes.io/name: balance-db
+    app.kubernetes.io/part-of: zero-trust-charging-system
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: balance-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: balance-db
+        app.kubernetes.io/part-of: zero-trust-charging-system
+        tier: database
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:4.4.29
+          args: ["--wiredTigerCacheSizeGB=0.25", "--bind_ip_all"]
+          ports:
+            - containerPort: 27017
+          envFrom:
+            - secretRef:
+                name: balance-db-credentials
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command: ["mongo", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["mongo", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: balance-db-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: balance-db
+  namespace: billing-cde
+spec:
+  selector:
+    app.kubernetes.io/name: balance-db
+  ports:
+    - port: 27017
+      targetPort: 27017
