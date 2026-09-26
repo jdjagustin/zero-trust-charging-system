@@ -67,3 +67,57 @@ Two application users, created in database `billing`: `charging_api` (role `read
     kubectl -n billing-clients delete secret reporting-db-credentials
 
 The volume uses reclaim policy `Delete`, so removing it also removes the (synthetic) data.
+
+## Stage 3a - Charging API (`charging-api`)
+
+**What:** build the application that handles credit requests, publish it as a container image to the lab's own registry, and deploy it in `billing-cde` next to the database.
+
+**What it does:** a small HTTP service (Python standard library plus `pymongo`). `POST /reserve` sets aside credit with a single atomic debit that only matches when the balance is sufficient; `POST /commit` charges what was actually used and releases the rest; `POST /refund` releases everything; `GET /balance/<subscriber>` and `GET /healthz` complete the API. Every movement is written to the ledger. A unique sparse index on `finalSession` makes a second commit or refund of the same session fail (HTTP 409) instead of crediting twice.
+
+**Design choices:**
+
+- Self-contained image: dependencies are installed at build time (`pymongo==4.18.2`, pinned). Nothing is downloaded at runtime, which matters because the protected zone will have default-deny egress.
+- Built with BuildKit and nerdctl on a worker node (no Docker daemon) and pushed to the lab's Harbor registry. The image is pulled by containerd on the node, not by the pod, so pod-level network policy does not affect the pull.
+- Hardened workload: non-root (uid 10001), read-only root filesystem (with an `emptyDir` for `/tmp`), all Linux capabilities dropped, no privilege escalation, `RuntimeDefault` seccomp profile, and no ServiceAccount token mounted (the application does not need the Kubernetes API).
+- Database credentials come from the `charging-api-db-credentials` Secret through environment variables. Nothing sensitive is in git.
+- Probes use `exec` instead of network checks, so they do not depend on network policy.
+
+**Build and publish (worker node):**
+
+    sudo systemctl start buildkit
+    sudo nerdctl build -t harbor.lab.local/library/charging-api:0.1.0 .
+    sudo nerdctl push harbor.lab.local/library/charging-api:0.1.0
+    sudo systemctl stop buildkit
+
+**Deploy:**
+
+    kubectl apply -f manifests/20-charging-api.yaml
+    kubectl -n billing-cde rollout status deployment/charging-api
+
+**Verify (real output).** Functional tests, run from inside the pod, on subscriber `sub-0003` (starting balance 1500):
+
+    reserve 100              -> 200, balance 1400
+    reserve same session     -> 409 session already reserved
+    commit, used 60          -> 200, released 40, balance 1440
+    commit again             -> 409 session already finalized
+    refund after commit      -> 409 session already finalized
+    reserve 999999           -> 402 insufficient balance
+
+Concurrency test: 10 simultaneous reservations of 100 on `sub-0001` (balance 500), released at the same instant with a barrier:
+
+    status codes: 200 x5, 402 x5
+    final balance: 0
+
+Exactly five succeeded and five were rejected; the balance never went negative.
+
+**Known limitations (stated on purpose):**
+
+- Without a replica set MongoDB has no multi-document transactions. Closing a session records the event first and credits second, so a crash between the two would leave the released amount uncredited (it fails on the safe side). `reserve` debits before writing its ledger entry, so a crash between the two would leave a debit without a record. Reconciling balances against the ledger would catch both.
+- The registry's image scan (Trivy) reports 162 findings, highest severity High, 6 with a fix available. The High findings reviewed so far are in base operating system packages with no fixed version published yet. A full triage is pending.
+- These tests were run from inside the pod, and no network policy is applied yet, so nothing here demonstrates segmentation.
+
+**Rollback:**
+
+    kubectl delete -f manifests/20-charging-api.yaml
+
+The image stays in the registry.

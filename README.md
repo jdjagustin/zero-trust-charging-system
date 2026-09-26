@@ -1,6 +1,6 @@
 # zero-trust-charging-system
 
-![Status: design only](https://img.shields.io/badge/status-design%20only-orange)
+![Status: in progress](https://img.shields.io/badge/status-in%20progress-yellow)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-NetworkPolicy-326CE5?logo=kubernetes&logoColor=white)
 ![k3s](https://img.shields.io/badge/k3s-lightweight%20Kubernetes-2F6F8F)
 ![Calico](https://img.shields.io/badge/CNI-Calico-B85400)
@@ -11,7 +11,7 @@
 
 A mini prepaid **charging system** running on Kubernetes, with its balance database isolated behind default-deny network segmentation — designed to map each rule to a network-security requirement of a compliance framework (PCI-DSS Req. 1 as the primary reference).
 
-> **Status: design only.** Nothing in this repository has been built or validated yet. Every claim below is a design intent. Sections will be updated with real evidence (manifests, test output) as each phase is completed.
+> **Status: in progress.** The namespaces, the protected database and the charging API are deployed and have been tested on a real cluster (see [docs/build-log.md](docs/build-log.md)). The network policies that give this project its name are **not applied yet**, so the flows described below remain a design until they are validated. Sections will be updated with real evidence as each phase is completed.
 
 ## Why this project
 
@@ -106,6 +106,10 @@ This project demonstrates network segmentation around a critical database. It do
 
 - [x] Architecture and flow matrix defined
 - [ ] Deploy components on a Kubernetes cluster with a CNI that enforces `NetworkPolicy`
+  - [x] Namespaces and zone labels
+  - [x] `balance-db` (MongoDB, synthetic data, least-privilege users)
+  - [x] `charging-api` (deployed, functional and concurrency tested)
+  - [ ] Client workloads (`traffic-generator`, `reporting`) and `bastion`
 - [ ] Apply default-deny + explicit allow policies
 - [ ] Validate: legitimate flows work, everything else is blocked (with captured evidence)
 - [ ] Adversarial validation (simulated compromised pod attempting lateral movement)
