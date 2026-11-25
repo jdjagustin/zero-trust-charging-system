@@ -32,6 +32,15 @@ spec:
         app.kubernetes.io/part-of: zero-trust-charging-system
         tier: database
     spec:
+      # Run as the image's own mongodb user (uid/gid 999) from the start.
+      # With the default root start the stock entrypoint chowns /data/db and then
+      # re-executes through gosu; on the lab nodes that step spun at 100% CPU and
+      # never started mongod (crashloop). As non-root the entrypoint skips gosu
+      # and still passes --auth, so authentication stays enabled.
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: mongo
           image: mongo:4.4.29

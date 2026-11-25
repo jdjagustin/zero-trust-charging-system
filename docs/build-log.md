@@ -68,6 +68,14 @@ Two application users, created in database `billing`: `charging_api` (role `read
 
 The volume uses reclaim policy `Delete`, so removing it also removes the (synthetic) data.
 
+**Operational note: run as the `mongodb` user (uid/gid 999).**
+
+After an OS update and reboot of the lab nodes, `balance-db` went into a crashloop: the container was alive but `mongod` never started and the probes failed. Inside the container the entrypoint process was pinned at 100% CPU (utime climbing, no children). The stock `mongo` entrypoint starts as root, chowns `/data/db`, then re-executes itself through `gosu mongodb`, and that re-exec step is where it spun.
+
+Fix: set `securityContext` to `runAsUser: 999`, `runAsGroup: 999`, `fsGroup: 999` on the pod. Started as non-root, the entrypoint skips `gosu` and runs `mongod` directly, still appending `--auth`, so authentication stays on. Bypassing the entrypoint with a custom `command` was rejected because it would drop `--auth` handling and the first-run user creation.
+
+Verified live: `mongod --auth` running, pod 1/1 with 0 restarts, `charging-api` `/healthz` returns 200. The root cause of the `gosu` spin is not identified; this change works around it.
+
 ## Stage 3a - Charging API (`charging-api`)
 
 **What:** build the application that handles credit requests, publish it as a container image to the lab's own registry, and deploy it in `billing-cde` next to the database.
